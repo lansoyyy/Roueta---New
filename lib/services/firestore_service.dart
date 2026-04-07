@@ -407,4 +407,30 @@ class FirestoreService {
       }
     } catch (_) {}
   }
+
+  Future<void> deleteDriverAccount({
+    required String username,
+    required String badge,
+  }) async {
+    final normalizedUsername = username.trim().toLowerCase();
+    final normalizedBadge = badge.trim().toUpperCase();
+
+    final accountRef = _db
+        .collection('driver_accounts')
+        .doc(normalizedUsername);
+    final badgeRef = normalizedBadge.isNotEmpty
+        ? _db.collection('driver_badges').doc(normalizedBadge)
+        : null;
+
+    await _db.runTransaction((transaction) async {
+      transaction.delete(accountRef);
+      if (badgeRef != null) {
+        transaction.delete(badgeRef);
+      }
+    });
+
+    if (normalizedBadge.isNotEmpty) {
+      await clearBusLocation(normalizedBadge);
+    }
+  }
 }

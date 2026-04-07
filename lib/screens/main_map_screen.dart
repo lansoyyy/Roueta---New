@@ -626,12 +626,14 @@ class _BottomNav extends StatelessWidget {
                 children: [
                   _NavItem(
                     icon: Icons.directions_bus,
+                    label: 'Routes',
                     isSelected: selectedIndex == 0,
                     onTap: () => onTap(0),
                   ),
                   const Spacer(),
                   _NavItem(
                     icon: Icons.person_outline,
+                    label: 'Profile',
                     isSelected: selectedIndex == 2,
                     onTap: () => onTap(2),
                   ),
@@ -689,11 +691,13 @@ class _NavItem extends StatelessWidget {
   final IconData icon;
   final bool isSelected;
   final VoidCallback onTap;
+  final String? label;
 
   const _NavItem({
     required this.icon,
     required this.isSelected,
     required this.onTap,
+    this.label,
   });
 
   @override
@@ -704,30 +708,46 @@ class _NavItem extends StatelessWidget {
         width: 80,
         height: 62,
         child: Center(
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? AppColors.primary.withOpacity(0.14)
-                  : Colors.transparent,
-              shape: BoxShape.circle,
-              boxShadow: isSelected
-                  ? [
-                      BoxShadow(
-                        color: AppColors.primary.withOpacity(0.25),
-                        blurRadius: 10,
-                        spreadRadius: 1,
-                      ),
-                    ]
-                  : const [],
-            ),
-            child: Icon(
-              icon,
-              color: isSelected ? AppColors.primary : Colors.grey[400],
-              size: 26,
-            ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? AppColors.primary.withOpacity(0.14)
+                      : Colors.transparent,
+                  shape: BoxShape.circle,
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: AppColors.primary.withOpacity(0.25),
+                            blurRadius: 10,
+                            spreadRadius: 1,
+                          ),
+                        ]
+                      : const [],
+                ),
+                child: Icon(
+                  icon,
+                  color: isSelected ? AppColors.primary : Colors.grey[400],
+                  size: 26,
+                ),
+              ),
+              if (label != null) ...[  
+                const SizedBox(height: 2),
+                Text(
+                  label!,
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w600,
+                    color: isSelected ? AppColors.primary : Colors.grey[400],
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
       ),

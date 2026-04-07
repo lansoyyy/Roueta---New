@@ -33,7 +33,8 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
   // ETA state
   BusStop? _nextStop;
   int _etaMinutes = 0;
-  bool _notificationSent = false;
+  Set<String> _sentNotifications = {};
+  int? _passengerStopIndex;
   Timer? _etaTimer;
 
   // Custom marker icons
@@ -43,6 +44,8 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
   BitmapDescriptor? _compactStartIcon;
   BitmapDescriptor? _compactEndIcon;
   BitmapDescriptor? _compactMidIcon;
+  BitmapDescriptor? _busIcon;
+  BitmapDescriptor? _compactBusIcon;
   double _currentZoom = 13.5;
 
   late String _variantId;
@@ -65,6 +68,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     _buildStopMarkers();
     _loadMarkerIcons();
     _fetchRoadPolyline();
+    _detectPassengerNearestStop();
 
     // ETA refresh every 5 s
     _etaTimer = Timer.periodic(const Duration(seconds: 5), (_) {
@@ -130,6 +134,12 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     final compactStart = await MapMarkerIcons.startStop(compact: true);
     final compactEnd = await MapMarkerIcons.endStop(compact: true);
     final compactMid = await MapMarkerIcons.busStop(compact: true);
+    final facingRight = !_variantId.contains('_in');
+    final busIcon = await MapMarkerIcons.bus(facingRight: facingRight);
+    final compactBusIcon = await MapMarkerIcons.bus(
+      facingRight: facingRight,
+      compact: true,
+    );
     if (!mounted) return;
     _startIcon = start;
     _endIcon = end;
@@ -137,6 +147,8 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     _compactStartIcon = compactStart;
     _compactEndIcon = compactEnd;
     _compactMidIcon = compactMid;
+    _busIcon = busIcon;
+    _compactBusIcon = compactBusIcon;
     _buildStopMarkers();
   }
 
@@ -194,15 +206,11 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
         Marker(
           markerId: MarkerId('bus_${bus.driverBadge}'),
           position: bus.position,
-          icon: BitmapDescriptor.defaultMarkerWithHue(
-            BitmapDescriptor.hueAzure,
-          ),
+          icon: (_useCompactMarkers ? _compactBusIcon : _busIcon) ??
+              BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
           anchor: const Offset(0.5, 1.0),
           zIndexInt: 4,
-          infoWindow: InfoWindow(
-            title: bus.driverBadge,
-            snippet: 'Stop ${bus.currentStopIndex + 1} of ${_stops.length}',
-          ),
+          onTap: () => _showBusInfoSheet(context, bus),
         ),
       );
     }
@@ -245,19 +253,64 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     );
     final minsToNext = math.max(1, (distanceM / 250).ceil());
 
-    if (minsToNext <= 2 && !_notificationSent) {
-      _notificationSent = true;
-      NotificationService().showBusApproachingNotification(
-        stopName: next.name,
-        minutesAway: minsToNext,
-      );
-      provider.addBusApproachingNotification(
-        routeCode: widget.route.code,
-        stopName: next.name,
-        minutesAway: minsToNext,
-      );
+    // ── Notifications ──────────────────────────────────────────────────────
+    if (_passengerStopIndex != null) {
+      final psIdx = _passengerStopIndex!;
+      final passengerStop = _stops[psIdx.clamp(0, _stops.length - 1)];
+
+      // Bus is 1 stop before the passenger's stop → "approaching"
+      if (busStopIdx == psIdx - 1) {
+        final key = 'approach_$psIdx';
+        if (!_sentNotifications.contains(key)) {
+          _sentNotifications.add(key);
+          NotificationService().showBusApproachingNotification(
+            stopName: passengerStop.name,
+            minutesAway: minsToNext,
+          );
+          provider.addBusApproachingNotification(
+            routeCode: widget.route.code,
+            stopName: passengerStop.name,
+            minutesAway: minsToNext,
+          );
+        }
+      }
+
+      // Bus has reached the passenger's stop → "arriving now"
+      if (busStopIdx >= psIdx) {
+        final key = 'arrive_$psIdx';
+        if (!_sentNotifications.contains(key)) {
+          _sentNotifications.add(key);
+          NotificationService().showBusApproachingNotification(
+            stopName: passengerStop.name,
+            minutesAway: 1,
+          );
+          provider.addBusApproachingNotification(
+            routeCode: widget.route.code,
+            stopName: passengerStop.name,
+            minutesAway: 1,
+          );
+        }
+      }
+    } else {
+      // Fallback: no passenger GPS → notify on 2-min proximity to bus's next stop
+      final key = 'fallback_$nextStopIdx';
+      if (minsToNext <= 2) {
+        if (!_sentNotifications.contains(key)) {
+          _sentNotifications.add(key);
+          NotificationService().showBusApproachingNotification(
+            stopName: next.name,
+            minutesAway: minsToNext,
+          );
+          provider.addBusApproachingNotification(
+            routeCode: widget.route.code,
+            stopName: next.name,
+            minutesAway: minsToNext,
+          );
+        }
+      } else {
+        _sentNotifications.remove(key);
+      }
     }
-    if (minsToNext > 2) _notificationSent = false;
 
     setState(() {
       _nextStop = next;
@@ -273,7 +326,8 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
       _loadingPolyline = true;
       _nextStop = null;
       _etaMinutes = 0;
-      _notificationSent = false;
+      _sentNotifications = {};
+      _passengerStopIndex = null;
       widget.route.selectVariant(newVariantId);
     });
     context.read<AppProvider>().selectRoute(
@@ -281,7 +335,215 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
       variantId: newVariantId,
     );
     _buildStopMarkers();
+    _loadMarkerIcons();
     _fetchRoadPolyline();
+    _detectPassengerNearestStop();
+  }
+
+  // ── Passenger stop detection ─────────────────────────────────────────────
+
+  void _detectPassengerNearestStop() {
+    if (_stops.isEmpty) return;
+    final provider = context.read<AppProvider>();
+    if (!provider.locationPermissionGranted) return;
+    final userLat = provider.currentLatLng.latitude;
+    final userLng = provider.currentLatLng.longitude;
+    double minDist = double.infinity;
+    int nearest = 0;
+    for (int i = 0; i < _stops.length; i++) {
+      final d = Geolocator.distanceBetween(
+        userLat,
+        userLng,
+        _stops[i].position.latitude,
+        _stops[i].position.longitude,
+      );
+      if (d < minDist) {
+        minDist = d;
+        nearest = i;
+      }
+    }
+    _passengerStopIndex = nearest;
+  }
+
+  // ── Bus info bottom sheet ──────────────────────────────────────────────────
+
+  void _showBusInfoSheet(BuildContext ctx, BusLocationData bus) {
+    if (_stops.isEmpty) return;
+    final stopIdx = bus.currentStopIndex.clamp(0, _stops.length - 1);
+    final nextIdx = (bus.currentStopIndex + 1).clamp(0, _stops.length - 1);
+    final currentStopName = _stops[stopIdx].name;
+    final nextStopName = nextIdx != stopIdx ? _stops[nextIdx].name : '—';
+
+    Color occColor;
+    String occLabel;
+    switch (bus.occupancyStatus) {
+      case OccupancyStatus.seatAvailable:
+        occColor = AppColors.statusOperating;
+        occLabel = 'Seats Available';
+        break;
+      case OccupancyStatus.limitedSeats:
+        occColor = AppColors.accent;
+        occLabel = 'Limited Seats';
+        break;
+      case OccupancyStatus.fullCapacity:
+        occColor = AppColors.statusUnavailable;
+        occLabel = 'Full Capacity';
+        break;
+      case null:
+        occColor = AppColors.gray400;
+        occLabel = 'No occupancy info';
+    }
+
+    showModalBottomSheet(
+      context: ctx,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Handle bar
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            // Header: badge + occupancy chip
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    bus.driverBadge,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                const Icon(
+                  Icons.directions_bus,
+                  color: AppColors.primary,
+                  size: 26,
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: occColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: occColor.withOpacity(0.4)),
+                  ),
+                  child: Text(
+                    occLabel,
+                    style: TextStyle(
+                      color: occColor,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            // Driver name
+            Row(
+              children: [
+                const Icon(Icons.person_outline, color: Colors.grey, size: 18),
+                const SizedBox(width: 8),
+                Text(
+                  bus.driverName,
+                  style: const TextStyle(fontSize: 14, color: Colors.black87),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            // Current stop
+            Row(
+              children: [
+                const Icon(
+                  Icons.location_on_outlined,
+                  color: Colors.grey,
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'At: $currentStopName',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            // Next stop
+            Row(
+              children: [
+                const Icon(
+                  Icons.arrow_forward_outlined,
+                  color: Colors.grey,
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Next: $nextStopName',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (_etaMinutes > 0) ...[  
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(
+                    Icons.access_time_outlined,
+                    color: Colors.grey,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'ETA: ~$_etaMinutes min',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 
   // ── Map helpers ───────────────────────────────────────────────────────────

@@ -167,7 +167,7 @@ class _DriverProfileView extends StatelessWidget {
                 child: Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  margin: const EdgeInsets.only(bottom: 24),
+                  margin: const EdgeInsets.only(bottom: 12),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(14),
@@ -182,6 +182,40 @@ class _DriverProfileView extends StatelessWidget {
                         'Log Out',
                         style: TextStyle(
                           color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Delete account button
+              GestureDetector(
+                onTap: () => _confirmDeleteAccount(context),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  margin: const EdgeInsets.only(bottom: 24),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.red.withOpacity(0.5)),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.delete_forever_rounded,
+                        color: Colors.redAccent,
+                        size: 20,
+                      ),
+                      SizedBox(width: 10),
+                      Text(
+                        'Delete Account',
+                        style: TextStyle(
+                          color: Colors.redAccent,
                           fontWeight: FontWeight.bold,
                           fontSize: 15,
                         ),
@@ -240,6 +274,67 @@ class _DriverProfileView extends StatelessWidget {
               ),
             ),
             child: const Text('Log Out'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDeleteAccount(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Delete Account',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.red,
+          ),
+        ),
+        content: const Text(
+          'This will permanently delete your account and all associated data.\n\nThis action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel', style: TextStyle(color: Colors.grey[600])),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              context.read<AppProvider>().stopDriverRoute(
+                driverBadge: context.read<AuthProvider>().driverBadge,
+              );
+              context.read<AppProvider>().setUserMode(UserMode.passenger);
+              final error =
+                  await context.read<AuthProvider>().deleteAccount();
+              if (context.mounted) {
+                if (error != null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(error),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                } else {
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(
+                      builder: (_) => const RoleSelectionScreen(),
+                    ),
+                    (route) => false,
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: const Text('Delete'),
           ),
         ],
       ),

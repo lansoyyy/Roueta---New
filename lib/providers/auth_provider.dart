@@ -333,4 +333,27 @@ class AuthProvider extends ChangeNotifier {
 
     notifyListeners();
   }
+
+  Future<String?> deleteAccount() async {
+    if (!_isDriverLoggedIn || _driverUsername == null) {
+      return 'You need to sign in to delete your account.';
+    }
+    _setLoading(true);
+    final username = _driverUsername!;
+    final badge = _driverBadge ?? '';
+    try {
+      await FirestoreService().deleteDriverAccount(
+        username: username,
+        badge: badge,
+      );
+      await logout();
+      return null;
+    } catch (_) {
+      _setLoading(
+        false,
+        error: 'Unable to delete your account right now. Please try again.',
+      );
+      return _lastError;
+    }
+  }
 }
