@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "215595434792",
+    "project_id": "roueta-9f596",
+    "storage_bucket": "roueta-9f596.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:215595434792:android:6f1e430bf5128b2d08861d",
+        "android_client_info": {
+          "package_name": "com.example.roueta"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBx9pU9m6mP-gqCRicHC6eEYWjzSi5CFVo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

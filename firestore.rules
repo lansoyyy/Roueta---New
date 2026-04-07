@@ -1,0 +1,158 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isNonEmptyString(value, maxLength) {
+      return value is string && value.size() > 0 && value.size() <= maxLength;
+    }
+
+    function validRole(value) {
+      return value in ['driver', 'konduktor'];
+    }
+
+    function validStatus(value) {
+      return value in ['operating', 'onStandby', 'unavailable'];
+    }
+
+    function validOccupancy(value) {
+      return value in ['seatAvailable', 'limitedSeats', 'fullCapacity'];
+    }
+
+    function validDriverAccount(data, username) {
+      return data.keys().hasOnly([
+            'username',
+            'passwordHash',
+            'name',
+            'role',
+            'badge',
+            'assignedRoutes',
+            'isActive',
+            'createdAt',
+            'updatedAt',
+            'lastLoginAt'
+          ]) &&
+          data.username == username &&
+          isNonEmptyString(data.username, 40) &&
+          isNonEmptyString(data.passwordHash, 128) &&
+          isNonEmptyString(data.name, 80) &&
+          validRole(data.role) &&
+          isNonEmptyString(data.badge, 32) &&
+          data.assignedRoutes is list &&
+          data.assignedRoutes.size() > 0 &&
+          data.assignedRoutes.size() <= 20 &&
+          data.isActive is bool;
+    }
+
+    function validDriverBadge(data, badge) {
+      return data.keys().hasOnly(['badge', 'username', 'createdAt', 'updatedAt']) &&
+          data.badge == badge &&
+          isNonEmptyString(data.username, 40);
+    }
+
+    function validBusLocation(data, badge) {
+      return data.keys().hasOnly([
+            'driverBadge',
+            'driverName',
+            'routeId',
+            'variantId',
+            'lat',
+            'lng',
+            'currentStopIndex',
+            'isActive',
+            'timestamp',
+            'occupancyStatus',
+            'occupancyLastUpdated'
+          ]) &&
+          data.driverBadge == badge &&
+          (!('driverName' in data) || isNonEmptyString(data.driverName, 80)) &&
+          (!('routeId' in data) || isNonEmptyString(data.routeId, 32)) &&
+          (!('variantId' in data) || isNonEmptyString(data.variantId, 64)) &&
+          (!('lat' in data) || data.lat is number) &&
+          (!('lng' in data) || data.lng is number) &&
+          (!('currentStopIndex' in data) || data.currentStopIndex is int) &&
+          (!('isActive' in data) || data.isActive is bool) &&
+          (!('occupancyStatus' in data) || validOccupancy(data.occupancyStatus));
+    }
+
+    function validRouteStatus(data, routeId) {
+      return data.keys().hasOnly([
+            'routeId',
+            'status',
+            'occupancyStatus',
+            'occupancyLastUpdated',
+            'lastUpdatedAt',
+            'lastUpdatedBy'
+          ]) &&
+          data.routeId == routeId &&
+          (!('status' in data) || validStatus(data.status)) &&
+          (!('occupancyStatus' in data) || validOccupancy(data.occupancyStatus)) &&
+          (!('lastUpdatedBy' in data) || isNonEmptyString(data.lastUpdatedBy, 80));
+    }
+
+    function validFeedback(data) {
+      return data.keys().hasOnly([
+            'category',
+            'subject',
+            'message',
+            'rating',
+            'timestamp',
+            'platform',
+            'appVersion'
+          ]) &&
+          isNonEmptyString(data.category, 50) &&
+          isNonEmptyString(data.subject, 120) &&
+          isNonEmptyString(data.message, 4000) &&
+          data.rating is int &&
+          data.rating >= 1 &&
+          data.rating <= 5;
+    }
+
+    function validPolylineCache(data) {
+      return data.keys().hasOnly([
+            'routeId',
+            'variantId',
+            'points',
+            'cachedAt'
+          ]) &&
+          isNonEmptyString(data.routeId, 32) &&
+          isNonEmptyString(data.variantId, 64) &&
+          data.points is list;
+    }
+
+    match /driver_accounts/{username} {
+      allow get: if true;
+      allow list: if false;
+      allow create, update: if validDriverAccount(request.resource.data, username);
+      allow delete: if false;
+    }
+
+    match /driver_badges/{badge} {
+      allow get: if true;
+      allow list: if false;
+      allow create, update: if validDriverBadge(request.resource.data, badge);
+      allow delete: if true;
+    }
+
+    match /bus_locations/{badge} {
+      allow read: if true;
+      allow create, update: if validBusLocation(request.resource.data, badge);
+      allow delete: if false;
+    }
+
+    match /route_status/{routeId} {
+      allow read: if true;
+      allow create, update: if validRouteStatus(request.resource.data, routeId);
+      allow delete: if false;
+    }
+
+    match /feedback/{feedbackId} {
+      allow create: if validFeedback(request.resource.data);
+      allow read, update, delete: if false;
+    }
+
+    match /polyline_cache/{cacheId} {
+      allow read: if true;
+      allow create, update: if validPolylineCache(request.resource.data);
+      allow delete: if false;
+    }
+  }
+}
