@@ -256,7 +256,8 @@ class _LiveMapViewState extends State<_LiveMapView> {
     _StopMarkerKind existing,
     _StopMarkerKind candidate,
   ) {
-    if (existing == _StopMarkerKind.start || candidate == _StopMarkerKind.start) {
+    if (existing == _StopMarkerKind.start ||
+        candidate == _StopMarkerKind.start) {
       return _StopMarkerKind.start;
     }
     if (existing == _StopMarkerKind.end || candidate == _StopMarkerKind.end) {
@@ -265,32 +266,47 @@ class _LiveMapViewState extends State<_LiveMapView> {
     return _StopMarkerKind.mid;
   }
 
-  BitmapDescriptor _stopIconFor(_StopMarkerKind kind, {required bool selected}) {
+  BitmapDescriptor _stopIconFor(
+    _StopMarkerKind kind, {
+    required bool selected,
+  }) {
     switch (kind) {
       case _StopMarkerKind.start:
         return selected
             ? ((_useCompactMarkers
                       ? _compactSelectedStartStopIcon
                       : _selectedStartStopIcon) ??
-                BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen))
+                  BitmapDescriptor.defaultMarkerWithHue(
+                    BitmapDescriptor.hueGreen,
+                  ))
             : ((_useCompactMarkers ? _compactStartStopIcon : _startStopIcon) ??
-                BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen));
+                  BitmapDescriptor.defaultMarkerWithHue(
+                    BitmapDescriptor.hueGreen,
+                  ));
       case _StopMarkerKind.end:
         return selected
             ? ((_useCompactMarkers
                       ? _compactSelectedEndStopIcon
                       : _selectedEndStopIcon) ??
-                BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed))
+                  BitmapDescriptor.defaultMarkerWithHue(
+                    BitmapDescriptor.hueRed,
+                  ))
             : ((_useCompactMarkers ? _compactEndStopIcon : _endStopIcon) ??
-                BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed));
+                  BitmapDescriptor.defaultMarkerWithHue(
+                    BitmapDescriptor.hueRed,
+                  ));
       case _StopMarkerKind.mid:
         return selected
             ? ((_useCompactMarkers
                       ? _compactSelectedMidStopIcon
                       : _selectedMidStopIcon) ??
-                BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure))
+                  BitmapDescriptor.defaultMarkerWithHue(
+                    BitmapDescriptor.hueAzure,
+                  ))
             : ((_useCompactMarkers ? _compactMidStopIcon : _midStopIcon) ??
-                BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure));
+                  BitmapDescriptor.defaultMarkerWithHue(
+                    BitmapDescriptor.hueAzure,
+                  ));
     }
   }
 
@@ -305,7 +321,8 @@ class _LiveMapViewState extends State<_LiveMapView> {
               : index == variant.stops.length - 1
               ? _StopMarkerKind.end
               : _StopMarkerKind.mid;
-          final key = '${stop.name}_${stop.position.latitude.toStringAsFixed(5)}_${stop.position.longitude.toStringAsFixed(5)}';
+          final key =
+              '${stop.name}_${stop.position.latitude.toStringAsFixed(5)}_${stop.position.longitude.toStringAsFixed(5)}';
           final existing = uniqueStops[key];
           if (existing == null) {
             uniqueStops[key] = _MainMapStopEntry(stop: stop, kind: kind);
@@ -352,7 +369,8 @@ class _LiveMapViewState extends State<_LiveMapView> {
       return Marker(
         markerId: MarkerId('bus_${bus.driverBadge}'),
         position: bus.position,
-        icon: icon ??
+        icon:
+            icon ??
             BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
         infoWindow: InfoWindow(
           title: '${bus.driverBadge} — ${bus.routeId.toUpperCase()}',
@@ -396,20 +414,13 @@ class _LiveMapViewState extends State<_LiveMapView> {
               color: Colors.white,
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.15),
-                  blurRadius: 6,
-                ),
+                BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 6),
               ],
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  Icons.place_rounded,
-                  color: AppColors.primary,
-                  size: 16,
-                ),
+                Icon(Icons.place_rounded, color: AppColors.primary, size: 16),
                 const SizedBox(width: 5),
                 Text(
                   '${_stopMarkers.length} bus stops',
@@ -736,7 +747,7 @@ class _NavItem extends StatelessWidget {
                   size: 26,
                 ),
               ),
-              if (label != null) ...[  
+              if (label != null) ...[
                 const SizedBox(height: 2),
                 Text(
                   label!,

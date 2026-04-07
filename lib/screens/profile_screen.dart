@@ -287,10 +287,7 @@ class _DriverProfileView extends StatelessWidget {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text(
           'Delete Account',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.red,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
         ),
         content: const Text(
           'This will permanently delete your account and all associated data.\n\nThis action cannot be undone.',
@@ -307,15 +304,11 @@ class _DriverProfileView extends StatelessWidget {
                 driverBadge: context.read<AuthProvider>().driverBadge,
               );
               context.read<AppProvider>().setUserMode(UserMode.passenger);
-              final error =
-                  await context.read<AuthProvider>().deleteAccount();
+              final error = await context.read<AuthProvider>().deleteAccount();
               if (context.mounted) {
                 if (error != null) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(error),
-                      backgroundColor: Colors.red,
-                    ),
+                    SnackBar(content: Text(error), backgroundColor: Colors.red),
                   );
                 } else {
                   Navigator.of(context).pushAndRemoveUntil(

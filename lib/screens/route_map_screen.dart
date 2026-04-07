@@ -206,7 +206,8 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
         Marker(
           markerId: MarkerId('bus_${bus.driverBadge}'),
           position: bus.position,
-          icon: (_useCompactMarkers ? _compactBusIcon : _busIcon) ??
+          icon:
+              (_useCompactMarkers ? _compactBusIcon : _busIcon) ??
               BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
           anchor: const Offset(0.5, 1.0),
           zIndexInt: 4,
@@ -491,10 +492,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                 Expanded(
                   child: Text(
                     'At: $currentStopName',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Colors.black87,
-                    ),
+                    style: const TextStyle(fontSize: 14, color: Colors.black87),
                   ),
                 ),
               ],
@@ -512,15 +510,12 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                 Expanded(
                   child: Text(
                     'Next: $nextStopName',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Colors.black87,
-                    ),
+                    style: const TextStyle(fontSize: 14, color: Colors.black87),
                   ),
                 ),
               ],
             ),
-            if (_etaMinutes > 0) ...[  
+            if (_etaMinutes > 0) ...[
               const SizedBox(height: 8),
               Row(
                 children: [
@@ -532,10 +527,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                   const SizedBox(width: 8),
                   Text(
                     'ETA: ~$_etaMinutes min',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Colors.black87,
-                    ),
+                    style: const TextStyle(fontSize: 14, color: Colors.black87),
                   ),
                 ],
               ),
