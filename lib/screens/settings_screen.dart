@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/constants/app_colors.dart';
 import '../providers/settings_provider.dart';
+import '../services/notification_service.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -36,6 +37,9 @@ class SettingsScreen extends StatelessWidget {
             value: settings.busApproachNotifs,
             onChanged: (v) {
               settings.busApproachNotifs = v;
+              if (v) {
+                NotificationService().requestPermissions();
+              }
               settings.save();
             },
           ),
@@ -47,6 +51,9 @@ class SettingsScreen extends StatelessWidget {
             value: settings.occupancyNotifs,
             onChanged: (v) {
               settings.occupancyNotifs = v;
+              if (v) {
+                NotificationService().requestPermissions();
+              }
               settings.save();
             },
           ),
@@ -58,6 +65,9 @@ class SettingsScreen extends StatelessWidget {
             value: settings.routeStatusNotifs,
             onChanged: (v) {
               settings.routeStatusNotifs = v;
+              if (v) {
+                NotificationService().requestPermissions();
+              }
               settings.save();
             },
           ),

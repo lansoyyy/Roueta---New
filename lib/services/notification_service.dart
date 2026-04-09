@@ -150,7 +150,7 @@ class NotificationService {
     required String status,
   }) async {
     final prefs = await SharedPreferences.getInstance();
-    if (!(prefs.getBool(_kRouteStatusKey) ?? false)) return;
+    if (!(prefs.getBool(_kRouteStatusKey) ?? true)) return;
 
     await requestPermissions();
     await _plugin.show(

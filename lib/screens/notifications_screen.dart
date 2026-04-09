@@ -34,7 +34,7 @@ class NotificationsScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  '',
+                  '$unread',
                   style: TextStyle(
                     color: AppColors.primary,
                     fontWeight: FontWeight.bold,
@@ -65,7 +65,7 @@ class NotificationsScreen extends StatelessWidget {
               itemBuilder: (_, i) {
                 final notif = notifications[i];
                 return Dismissible(
-                  key: Key('notif_'),
+                  key: Key('notif_${notif.id}'),
                   direction: DismissDirection.endToStart,
                   background: Container(
                     alignment: Alignment.centerRight,
@@ -194,10 +194,10 @@ class _NotificationTile extends StatelessWidget {
     final now = DateTime.now();
     final diff = now.difference(dt);
     if (diff.inMinutes < 1) return 'Just now';
-    if (diff.inMinutes < 60) return ' mins ago';
-    if (diff.inHours < 24) return 'h ago';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} min${diff.inMinutes == 1 ? '' : 's'} ago';
+    if (diff.inHours < 24) return '${diff.inHours} hour${diff.inHours == 1 ? '' : 's'} ago';
     if (diff.inDays == 1) return 'Yesterday';
-    return ' days ago';
+    return '${diff.inDays} days ago';
   }
 }
 

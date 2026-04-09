@@ -116,6 +116,8 @@ class AppProvider extends ChangeNotifier {
   static const String _driverTripsKey = 'driver_trip_history';
   static const String _notificationsKey = 'in_app_notifications';
   static const Duration _maxBusLocationAge = Duration(seconds: 45);
+  static const Duration _passengerAlertCooldown = Duration(minutes: 15);
+  static const double _averageBusMetersPerMinute = 250;
 
   final List<BusRoute> _routes = RoutesData.routes;
   BusRoute? _selectedRoute;
@@ -149,6 +151,7 @@ class AppProvider extends ChangeNotifier {
 
   // ── In-app notifications ──────────────────────────────────────────────────
   final List<AppNotification> _notifications = [];
+  final Map<String, DateTime> _recentPassengerAlertKeys = {};
 
   // ── Getters ───────────────────────────────────────────────────────────────
 
@@ -273,6 +276,7 @@ class AppProvider extends ChangeNotifier {
         }
       }
       _reconcileRouteStates();
+      _evaluatePassengerNotifications();
       notifyListeners();
     }, onError: (_) {});
 
@@ -380,6 +384,8 @@ class AppProvider extends ChangeNotifier {
   }
 
   void _onRouteStatusChanged(BusRoute route, RouteStatus newStatus) {
+    if (!_shouldNotifyPassengerForRoute(route.id)) return;
+
     final label = newStatus == RouteStatus.operating
         ? 'now operating. Buses are on the road.'
         : newStatus == RouteStatus.onStandby
@@ -401,6 +407,8 @@ class AppProvider extends ChangeNotifier {
   }
 
   void _onOccupancyChanged(BusRoute route, OccupancyStatus newOcc) {
+    if (!_shouldNotifyPassengerForRoute(route.id)) return;
+
     final label = newOcc == OccupancyStatus.seatAvailable
         ? 'Seats Available (~33%)'
         : newOcc == OccupancyStatus.limitedSeats
@@ -419,6 +427,157 @@ class AppProvider extends ChangeNotifier {
       routeName: route.name,
       occupancyLabel: label,
     );
+  }
+
+  void _evaluatePassengerNotifications() {
+    if (_userMode != UserMode.passenger) return;
+
+    final route = _selectedRoute;
+    final variant = selectedRouteVariant;
+    if (route == null || variant == null || variant.stops.isEmpty) return;
+
+    final routeBuses = getBusLocationsForRoute(route.id);
+    if (routeBuses.isEmpty) return;
+
+    final variantBuses = routeBuses
+        .where((bus) => bus.variantId == variant.id)
+        .toList(growable: false);
+    final buses = variantBuses.isNotEmpty ? variantBuses : routeBuses;
+    final bus = buses.reduce(
+      (current, next) =>
+          current.currentStopIndex >= next.currentStopIndex ? current : next,
+    );
+
+    final stops = variant.stops;
+    final busStopIdx = bus.currentStopIndex.clamp(0, stops.length - 1);
+    final nextStopIdx = (busStopIdx + 1).clamp(0, stops.length - 1);
+    final nextStop = stops[nextStopIdx];
+    final minutesToNext = _estimateMinutesAway(
+      startLat: bus.lat,
+      startLng: bus.lng,
+      destination: nextStop.position,
+    );
+
+    final passengerStopIdx = _resolvePassengerStopIndex(stops);
+    if (passengerStopIdx != null) {
+      final passengerStop = stops[passengerStopIdx.clamp(0, stops.length - 1)];
+
+      if (passengerStopIdx > 0 &&
+          busStopIdx == passengerStopIdx - 1 &&
+          minutesToNext <= 2) {
+        _triggerPassengerBusApproachingAlert(
+          route: route,
+          stop: passengerStop,
+          minutesAway: minutesToNext,
+          eventKey:
+              'approach_${route.id}_${variant.id}_${bus.driverBadge}_${passengerStop.id}',
+        );
+      }
+
+      if (busStopIdx == passengerStopIdx) {
+        _triggerPassengerBusApproachingAlert(
+          route: route,
+          stop: passengerStop,
+          minutesAway: 1,
+          eventKey:
+              'arrive_${route.id}_${variant.id}_${bus.driverBadge}_${passengerStop.id}',
+        );
+      }
+
+      return;
+    }
+
+    if (minutesToNext <= 2) {
+      _triggerPassengerBusApproachingAlert(
+        route: route,
+        stop: nextStop,
+        minutesAway: minutesToNext,
+        eventKey:
+            'fallback_${route.id}_${variant.id}_${bus.driverBadge}_${nextStop.id}',
+      );
+    }
+  }
+
+  int? _resolvePassengerStopIndex(List<BusStop> stops) {
+    if (!_locationPermissionGranted || _currentPosition == null || stops.isEmpty) {
+      return null;
+    }
+
+    final userLat = _currentPosition!.latitude;
+    final userLng = _currentPosition!.longitude;
+    double minDistance = double.infinity;
+    int nearestIndex = 0;
+
+    for (int i = 0; i < stops.length; i++) {
+      final distance = Geolocator.distanceBetween(
+        userLat,
+        userLng,
+        stops[i].position.latitude,
+        stops[i].position.longitude,
+      );
+      if (distance < minDistance) {
+        minDistance = distance;
+        nearestIndex = i;
+      }
+    }
+
+    return nearestIndex;
+  }
+
+  int _estimateMinutesAway({
+    required double startLat,
+    required double startLng,
+    required LatLng destination,
+  }) {
+    final distanceMeters = Geolocator.distanceBetween(
+      startLat,
+      startLng,
+      destination.latitude,
+      destination.longitude,
+    );
+    return (distanceMeters / _averageBusMetersPerMinute).ceil().clamp(1, 99);
+  }
+
+  void _triggerPassengerBusApproachingAlert({
+    required BusRoute route,
+    required BusStop stop,
+    required int minutesAway,
+    required String eventKey,
+  }) {
+    if (!_shouldTriggerPassengerAlert(eventKey)) return;
+
+    NotificationService().showBusApproachingNotification(
+      stopName: stop.name,
+      minutesAway: minutesAway,
+    );
+    addBusApproachingNotification(
+      routeCode: route.code,
+      stopName: stop.name,
+      minutesAway: minutesAway,
+    );
+  }
+
+  bool _shouldTriggerPassengerAlert(String key) {
+    final now = DateTime.now();
+    _recentPassengerAlertKeys.removeWhere(
+      (_, timestamp) => now.difference(timestamp) > _passengerAlertCooldown,
+    );
+
+    final previous = _recentPassengerAlertKeys[key];
+    if (previous != null &&
+        now.difference(previous) < _passengerAlertCooldown) {
+      return false;
+    }
+
+    _recentPassengerAlertKeys[key] = now;
+    return true;
+  }
+
+  bool _shouldNotifyPassengerForRoute(String routeId) {
+    if (_userMode != UserMode.passenger) return false;
+    if (_selectedRoute?.id == routeId) return true;
+
+    return _recentRoutes.take(3).any((entry) => entry.routeId == routeId);
   }
 
   // ── Notification CRUD ─────────────────────────────────────────────────────
@@ -476,6 +635,7 @@ class AppProvider extends ChangeNotifier {
 
   void setUserMode(UserMode mode) {
     _userMode = mode;
+    _evaluatePassengerNotifications();
     notifyListeners();
   }
 
@@ -484,6 +644,7 @@ class AppProvider extends ChangeNotifier {
     _selectedVariantId = variantId ?? route.defaultVariantId;
     route.selectVariant(_selectedVariantId);
     addRecentRoute(route, _selectedVariantId ?? route.defaultVariantId);
+    _evaluatePassengerNotifications();
     notifyListeners();
   }
 
@@ -492,6 +653,7 @@ class AppProvider extends ChangeNotifier {
     if (_selectedRoute!.variantById(variantId) == null) return;
     _selectedVariantId = variantId;
     _selectedRoute!.selectVariant(variantId);
+    _evaluatePassengerNotifications();
     notifyListeners();
   }
 
@@ -695,6 +857,7 @@ class AppProvider extends ChangeNotifier {
       );
     } catch (_) {}
     _isLoadingLocation = false;
+    _evaluatePassengerNotifications();
     notifyListeners();
   }
 
@@ -713,6 +876,7 @@ class AppProvider extends ChangeNotifier {
           ),
         ).listen((pos) {
           _currentPosition = pos;
+          _evaluatePassengerNotifications();
           notifyListeners();
         }, onError: (_) {});
   }

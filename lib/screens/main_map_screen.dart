@@ -6,6 +6,7 @@ import '../models/bus_route.dart';
 import '../providers/app_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/settings_provider.dart';
+import '../services/notification_service.dart';
 import '../utils/map_marker_icons.dart';
 import '../widgets/app_drawer.dart';
 import 'auth/driver_login_screen.dart';
@@ -33,6 +34,7 @@ class _MainMapScreenState extends State<MainMapScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final settings = context.read<SettingsProvider>();
+      NotificationService().requestPermissions();
       context.read<AppProvider>().startLiveTracking(
         accuracy: settings.locationAccuracy,
       );

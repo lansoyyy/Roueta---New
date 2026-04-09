@@ -17,7 +17,7 @@ class SettingsProvider extends ChangeNotifier {
 
   bool busApproachNotifs = true;
   bool occupancyNotifs = true;
-  bool routeStatusNotifs = false;
+  bool routeStatusNotifs = true;
   bool vibrate = true;
   String mapType = 'Normal';
   bool showTraffic = false;

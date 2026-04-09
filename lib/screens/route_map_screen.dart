@@ -10,7 +10,6 @@ import '../models/bus_route.dart';
 import '../providers/app_provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/directions_service.dart';
-import '../services/notification_service.dart';
 import '../utils/map_marker_icons.dart';
 
 class RouteMapScreen extends StatefulWidget {
@@ -33,8 +32,6 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
   // ETA state
   BusStop? _nextStop;
   int _etaMinutes = 0;
-  Set<String> _sentNotifications = {};
-  int? _passengerStopIndex;
   Timer? _etaTimer;
 
   // Custom marker icons
@@ -68,7 +65,6 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     _buildStopMarkers();
     _loadMarkerIcons();
     _fetchRoadPolyline();
-    _detectPassengerNearestStop();
 
     // ETA refresh every 5 s
     _etaTimer = Timer.periodic(const Duration(seconds: 5), (_) {
@@ -254,65 +250,6 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     );
     final minsToNext = math.max(1, (distanceM / 250).ceil());
 
-    // ── Notifications ──────────────────────────────────────────────────────
-    if (_passengerStopIndex != null) {
-      final psIdx = _passengerStopIndex!;
-      final passengerStop = _stops[psIdx.clamp(0, _stops.length - 1)];
-
-      // Bus is 1 stop before the passenger's stop → "approaching"
-      if (busStopIdx == psIdx - 1) {
-        final key = 'approach_$psIdx';
-        if (!_sentNotifications.contains(key)) {
-          _sentNotifications.add(key);
-          NotificationService().showBusApproachingNotification(
-            stopName: passengerStop.name,
-            minutesAway: minsToNext,
-          );
-          provider.addBusApproachingNotification(
-            routeCode: widget.route.code,
-            stopName: passengerStop.name,
-            minutesAway: minsToNext,
-          );
-        }
-      }
-
-      // Bus has reached the passenger's stop → "arriving now"
-      if (busStopIdx >= psIdx) {
-        final key = 'arrive_$psIdx';
-        if (!_sentNotifications.contains(key)) {
-          _sentNotifications.add(key);
-          NotificationService().showBusApproachingNotification(
-            stopName: passengerStop.name,
-            minutesAway: 1,
-          );
-          provider.addBusApproachingNotification(
-            routeCode: widget.route.code,
-            stopName: passengerStop.name,
-            minutesAway: 1,
-          );
-        }
-      }
-    } else {
-      // Fallback: no passenger GPS → notify on 2-min proximity to bus's next stop
-      final key = 'fallback_$nextStopIdx';
-      if (minsToNext <= 2) {
-        if (!_sentNotifications.contains(key)) {
-          _sentNotifications.add(key);
-          NotificationService().showBusApproachingNotification(
-            stopName: next.name,
-            minutesAway: minsToNext,
-          );
-          provider.addBusApproachingNotification(
-            routeCode: widget.route.code,
-            stopName: next.name,
-            minutesAway: minsToNext,
-          );
-        }
-      } else {
-        _sentNotifications.remove(key);
-      }
-    }
-
     setState(() {
       _nextStop = next;
       _etaMinutes = minsToNext;
@@ -327,8 +264,6 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
       _loadingPolyline = true;
       _nextStop = null;
       _etaMinutes = 0;
-      _sentNotifications = {};
-      _passengerStopIndex = null;
       widget.route.selectVariant(newVariantId);
     });
     context.read<AppProvider>().selectRoute(
@@ -338,32 +273,6 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     _buildStopMarkers();
     _loadMarkerIcons();
     _fetchRoadPolyline();
-    _detectPassengerNearestStop();
-  }
-
-  // ── Passenger stop detection ─────────────────────────────────────────────
-
-  void _detectPassengerNearestStop() {
-    if (_stops.isEmpty) return;
-    final provider = context.read<AppProvider>();
-    if (!provider.locationPermissionGranted) return;
-    final userLat = provider.currentLatLng.latitude;
-    final userLng = provider.currentLatLng.longitude;
-    double minDist = double.infinity;
-    int nearest = 0;
-    for (int i = 0; i < _stops.length; i++) {
-      final d = Geolocator.distanceBetween(
-        userLat,
-        userLng,
-        _stops[i].position.latitude,
-        _stops[i].position.longitude,
-      );
-      if (d < minDist) {
-        minDist = d;
-        nearest = i;
-      }
-    }
-    _passengerStopIndex = nearest;
   }
 
   // ── Bus info bottom sheet ──────────────────────────────────────────────────
