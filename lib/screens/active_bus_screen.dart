@@ -36,6 +36,7 @@ class _ActiveBusScreenState extends State<ActiveBusScreen> {
   Timer? _gpsTimer;
   bool _loadingPolyline = true;
   late String _variantId;
+  bool _busLocationSessionStarted = false;
   // Stored so we can clear the Firestore doc in dispose() without needing context.
   String? _driverBadge;
   String? _driverName;
@@ -305,17 +306,11 @@ class _ActiveBusScreenState extends State<ActiveBusScreen> {
       final busPos = LatLng(lastPos.latitude, lastPos.longitude);
       setState(() => _driverPosition = busPos);
       _buildStopMarkers();
-      if (_driverBadge != null) {
-        FirestoreService().updateBusLocation(
-          driverBadge: _driverBadge!,
-          driverName: _driverName ?? 'Driver',
-          routeId: widget.route.id,
-          variantId: _variantId,
-          lat: lastPos.latitude,
-          lng: lastPos.longitude,
-          currentStopIndex: _currentStopIdx,
-        );
-      }
+      _publishBusLocation(
+        lat: lastPos.latitude,
+        lng: lastPos.longitude,
+        currentStopIndex: _currentStopIdx,
+      );
     });
     // Immediate first accurate update.
     _updateGps();
@@ -346,20 +341,49 @@ class _ActiveBusScreenState extends State<ActiveBusScreen> {
       }
 
       // Push to Firestore
-      if (_driverBadge != null) {
-        FirestoreService().updateBusLocation(
-          driverBadge: _driverBadge!,
-          driverName: _driverName ?? 'Driver',
-          routeId: widget.route.id,
-          variantId: _variantId,
-          lat: pos.latitude,
-          lng: pos.longitude,
-          currentStopIndex: stopIdx,
-        );
-      }
+      _publishBusLocation(
+        lat: pos.latitude,
+        lng: pos.longitude,
+        currentStopIndex: stopIdx,
+      );
     } catch (_) {
       // Location permission not granted or service unavailable — ignore.
     }
+  }
+
+  Future<void> _publishBusLocation({
+    required double lat,
+    required double lng,
+    required int currentStopIndex,
+  }) async {
+    if (_driverBadge == null) return;
+
+    final service = FirestoreService();
+    if (!_busLocationSessionStarted) {
+      final activated = await service.activateBusLocation(
+        driverBadge: _driverBadge!,
+        driverName: _driverName ?? 'Driver',
+        routeId: widget.route.id,
+        variantId: _variantId,
+        lat: lat,
+        lng: lng,
+        currentStopIndex: currentStopIndex,
+      );
+      if (activated) {
+        _busLocationSessionStarted = true;
+        return;
+      }
+    }
+
+    await service.updateBusLocation(
+      driverBadge: _driverBadge!,
+      driverName: _driverName ?? 'Driver',
+      routeId: widget.route.id,
+      variantId: _variantId,
+      lat: lat,
+      lng: lng,
+      currentStopIndex: currentStopIndex,
+    );
   }
 
   // Rebuild just the markers when active stop changes (avoids full polyline rebuild).

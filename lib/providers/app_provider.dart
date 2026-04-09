@@ -115,6 +115,7 @@ class AppProvider extends ChangeNotifier {
   static const String _recentRoutesKey = 'recent_routes';
   static const String _driverTripsKey = 'driver_trip_history';
   static const String _notificationsKey = 'in_app_notifications';
+  static const Duration _maxBusLocationAge = Duration(seconds: 45);
 
   final List<BusRoute> _routes = RoutesData.routes;
   BusRoute? _selectedRoute;
@@ -267,7 +268,7 @@ class AppProvider extends ChangeNotifier {
         final bus = BusLocationData.fromFirestore(
           doc.data() as Map<String, dynamic>,
         );
-        if (bus.driverBadge.isNotEmpty) {
+        if (bus.driverBadge.isNotEmpty && _isFreshBusLocation(bus)) {
           _activeBusLocations[bus.driverBadge] = bus;
         }
       }
@@ -370,6 +371,12 @@ class AppProvider extends ChangeNotifier {
     if (timestamps.isEmpty) return null;
     timestamps.sort();
     return timestamps.last;
+  }
+
+  bool _isFreshBusLocation(BusLocationData bus) {
+    final timestamp = bus.timestamp;
+    if (timestamp == null) return true;
+    return DateTime.now().difference(timestamp) <= _maxBusLocationAge;
   }
 
   void _onRouteStatusChanged(BusRoute route, RouteStatus newStatus) {

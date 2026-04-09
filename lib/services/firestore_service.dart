@@ -11,7 +11,7 @@ class FirestoreService {
 
   // ── Bus Locations ─────────────────────────────────────────────────────────
 
-  Future<void> updateBusLocation({
+  Future<bool> activateBusLocation({
     required String driverBadge,
     required String driverName,
     required String routeId,
@@ -32,6 +32,32 @@ class FirestoreService {
         'isActive': true,
         'timestamp': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
+      return true;
+    } catch (_) {}
+    return false;
+  }
+
+  Future<void> updateBusLocation({
+    required String driverBadge,
+    required String driverName,
+    required String routeId,
+    required String variantId,
+    required double lat,
+    required double lng,
+    required int currentStopIndex,
+  }) async {
+    try {
+      await _db.collection('bus_locations').doc(driverBadge).update({
+        'driverBadge': driverBadge,
+        'driverName': driverName,
+        'routeId': routeId,
+        'variantId': variantId,
+        'lat': lat,
+        'lng': lng,
+        'currentStopIndex': currentStopIndex,
+        'isActive': true,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
     } catch (_) {}
   }
 
@@ -42,14 +68,14 @@ class FirestoreService {
     required String occupancyStatus,
   }) async {
     try {
-      await _db.collection('bus_locations').doc(driverBadge).set({
+      await _db.collection('bus_locations').doc(driverBadge).update({
         'driverBadge': driverBadge,
         'routeId': routeId,
         'variantId': variantId,
         'occupancyStatus': occupancyStatus,
         'occupancyLastUpdated': FieldValue.serverTimestamp(),
         'timestamp': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      });
     } catch (_) {}
   }
 
